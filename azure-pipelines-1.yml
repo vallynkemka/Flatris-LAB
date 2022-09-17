@@ -17,30 +17,30 @@ variables:
   # Environment name
   environmentName: 'val-testwebapp'
 
-  # Agent VM image name
+# Agent VM image name
   vmImageName: 'ubuntu-latest'
-
+  
 stages:
-- stage: Build
-  displayName: Build stage
-  jobs:
-  - job: Build
-    displayName: Build
+- stage: Archive
+  displayName: Archive stage
+  jobs:  
+  - job: Archive
+    displayName: Archive
     pool:
       vmImage: $(vmImageName)
-
-    steps:
-    - task: NodeTool@0
+    steps:   
+    - task: AzureAppServiceSettings@1
       inputs:
-        versionSpec: '10.x'
-      displayName: 'Install Node.js'
-
-    - script: |
-        npm install
-        npm run build --if-present
-        npm run test --if-present
-      displayName: 'npm install, build and test'
-
+        azureSubscription: $(azureSubscription)
+        appName: $(webAppName)
+        resourceGroupName: $(resourceGroupName)
+        appSettings: |
+          [
+            {
+              "name": "SCM_DO_BUILD_DURING_DEPLOYMENT",
+              "value": "true"
+            }
+          ]
     - task: ArchiveFiles@2
       displayName: 'Archive files'
       inputs:
@@ -49,30 +49,29 @@ stages:
         archiveType: zip
         archiveFile: $(Build.ArtifactStagingDirectory)/$(Build.BuildId).zip
         replaceExistingArchive: true
-
+ 
     - upload: $(Build.ArtifactStagingDirectory)/$(Build.BuildId).zip
       artifact: drop
-
+ 
 - stage: Deploy
   displayName: Deploy stage
-  dependsOn: Build
+  dependsOn: Archive
   condition: succeeded()
   jobs:
   - deployment: Deploy
     displayName: Deploy
     environment: $(environmentName)
-    pool:
+    pool: 
       vmImage: $(vmImageName)
     strategy:
       runOnce:
         deploy:
-          steps:
+          steps:            
           - task: AzureWebApp@1
-            displayName: 'Azure Web App Deploy: val-testwebapp'
+            displayName: 'Azure Web App Deploy: Matt-Test-NodeJS-Deploy'
             inputs:
               azureSubscription: $(azureSubscription)
               appType: webAppLinux
               appName: $(webAppName)
-              runtimeStack: 'NODE|10.10'
+              runtimeStack: 'NODE|10.14'
               package: $(Pipeline.Workspace)/drop/$(Build.BuildId).zip
-              startUpCommand: 'npm run start'
